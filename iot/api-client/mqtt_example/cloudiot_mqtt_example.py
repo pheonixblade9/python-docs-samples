@@ -412,7 +412,6 @@ def parse_command_line_args():
     command.add_parser(
         'gateway_listen',
         help=listen_for_messages.__doc__)
->>>>>>> master
 
     return parser.parse_args()
 
