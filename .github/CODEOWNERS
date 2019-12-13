@@ -9,3 +9,9 @@ bigquery/transfer/*       @tswast
 
 # Tim Swast is the primary maintainer of the Composer samples.
 composer/*                @tswast
+
+# Gus Class is the primary maintainer of the IoT samples.
+iot/*                     @gguuss
+
+# Alix Hamilton is the primary maintainer of the Jupyter notebook samples
+notebooks/*               @alixhami

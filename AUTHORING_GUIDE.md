@@ -137,7 +137,7 @@ Don't include shebangs in web applications or test files.
 All samples should start with the following (modulo shebang line):
 
 ```
-# Copyright 2017 Google, Inc.
+# Copyright 2019 Google, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -432,7 +432,7 @@ generation.
 
 To use nox, install it globally with `pip`:
 
-    $ pip install nox-automation
+    $ pip install nox
 
 Nox automatically discovers all samples in the repository and generates three
 types of sessions for *each* sample in this repository:

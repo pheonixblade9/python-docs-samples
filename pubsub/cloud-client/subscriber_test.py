@@ -1,4 +1,4 @@
-# Copyright 2016 Google Inc. All Rights Reserved.
+# Copyright 2019 Google Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import time
 
 from gcp_devrel.testing import eventually_consistent
 from google.cloud import pubsub_v1
+import google.api_core.exceptions
 import mock
 import pytest
 
@@ -28,6 +29,7 @@ SUBSCRIPTION = 'subscription-test-subscription'
 SUBSCRIPTION_SYNC1 = 'subscription-test-subscription-sync1'
 SUBSCRIPTION_SYNC2 = 'subscription-test-subscription-sync2'
 ENDPOINT = 'https://{}.appspot.com/push'.format(PROJECT)
+NEW_ENDPOINT = 'https://{}.appspot.com/push2'.format(PROJECT)
 
 
 @pytest.fixture(scope='module')
@@ -64,7 +66,10 @@ def subscription(subscriber_client, topic):
     except Exception:
         pass
 
-    subscriber_client.create_subscription(subscription_path, topic=topic)
+    try:
+        subscriber_client.create_subscription(subscription_path, topic=topic)
+    except google.api_core.exceptions.AlreadyExists:
+        pass
 
     yield subscription_path
 
@@ -154,16 +159,25 @@ def test_delete(subscriber_client, subscription):
             subscriber_client.get_subscription(subscription)
 
 
+def test_update(subscriber_client, subscription, capsys):
+    subscriber.update_subscription(PROJECT, SUBSCRIPTION, NEW_ENDPOINT)
+
+    out, _ = capsys.readouterr()
+    assert 'Subscription updated' in out
+
+
 def _publish_messages(publisher_client, topic):
     for n in range(5):
         data = u'Message {}'.format(n).encode('utf-8')
-        publisher_client.publish(
+        future = publisher_client.publish(
             topic, data=data)
+        future.result()
 
 
 def _publish_messages_with_custom_attributes(publisher_client, topic):
     data = u'Test message'.encode('utf-8')
-    publisher_client.publish(topic, data=data, origin='python-sample')
+    future = publisher_client.publish(topic, data=data, origin='python-sample')
+    future.result()
 
 
 def _make_sleep_patch():

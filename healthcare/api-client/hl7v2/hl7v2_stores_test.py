@@ -23,20 +23,17 @@ import datasets
 import hl7v2_stores
 
 cloud_region = 'us-central1'
-api_key = os.environ['API_KEY']
 project_id = os.environ['GOOGLE_CLOUD_PROJECT']
 service_account_json = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 
 dataset_id = 'test_dataset_{}'.format(int(time.time()))
 hl7v2_store_id = 'test_hl7v2_store-{}'.format(int(time.time()))
-pubsub_topic = 'test_pubsub_topic-{}'.format(int(time.time()))
 
 
 @pytest.fixture(scope='module')
 def test_dataset():
     dataset = datasets.create_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
@@ -46,17 +43,14 @@ def test_dataset():
     # Clean up
     datasets.delete_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
 
 
-@pytest.mark.skip(reason='disable until have access to healthcare api')
 def test_CRUD_hl7v2_store(test_dataset, capsys):
     hl7v2_stores.create_hl7v2_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -64,7 +58,6 @@ def test_CRUD_hl7v2_store(test_dataset, capsys):
 
     hl7v2_stores.get_hl7v2_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -72,14 +65,12 @@ def test_CRUD_hl7v2_store(test_dataset, capsys):
 
     hl7v2_stores.list_hl7v2_stores(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
 
     hl7v2_stores.delete_hl7v2_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -94,11 +85,9 @@ def test_CRUD_hl7v2_store(test_dataset, capsys):
     assert 'Deleted HL7v2 store' in out
 
 
-@pytest.mark.skip(reason='disable until have access to healthcare api')
 def test_patch_hl7v2_store(test_dataset, capsys):
     hl7v2_stores.create_hl7v2_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -106,17 +95,14 @@ def test_patch_hl7v2_store(test_dataset, capsys):
 
     hl7v2_stores.patch_hl7v2_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
-        hl7v2_store_id,
-        pubsub_topic)
+        hl7v2_store_id)
 
     # Clean up
     hl7v2_stores.delete_hl7v2_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -125,3 +111,44 @@ def test_patch_hl7v2_store(test_dataset, capsys):
     out, _ = capsys.readouterr()
 
     assert 'Patched HL7v2 store' in out
+
+
+def test_get_set_hl7v2_store_iam_policy(test_dataset, capsys):
+    hl7v2_stores.create_hl7v2_store(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id,
+        hl7v2_store_id)
+
+    get_response = hl7v2_stores.get_hl7v2_store_iam_policy(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id,
+        hl7v2_store_id)
+
+    set_response = hl7v2_stores.set_hl7v2_store_iam_policy(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id,
+        hl7v2_store_id,
+        'serviceAccount:python-docs-samples-tests@appspot.gserviceaccount.com',
+        'roles/viewer')
+
+    # Clean up
+    hl7v2_stores.delete_hl7v2_store(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id,
+        hl7v2_store_id)
+
+    out, _ = capsys.readouterr()
+
+    assert 'etag' in get_response
+    assert 'bindings' in set_response
+    assert len(set_response['bindings']) == 1
+    assert 'python-docs-samples-tests' in str(set_response['bindings'])
+    assert 'roles/viewer' in str(set_response['bindings'])

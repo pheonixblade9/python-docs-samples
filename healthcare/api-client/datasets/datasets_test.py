@@ -13,40 +13,36 @@
 # limitations under the License.
 
 import os
-import pytest
 import time
 
 import datasets
 
 cloud_region = 'us-central1'
-api_key = os.environ['API_KEY']
 project_id = os.environ['GOOGLE_CLOUD_PROJECT']
 service_account_json = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 
 dataset_id = 'test-dataset-{}'.format(int(time.time()))
 destination_dataset_id = 'test-destination-dataset-{}'.format(int(time.time()))
-whitelist_tags = 'PatientID'
+keeplist_tags = 'PatientID'
 time_zone = 'UTC'
 
 
-@pytest.mark.skip(reason='disable until API whitelisted / enabled')
 def test_CRUD_dataset(capsys):
     datasets.create_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
 
     datasets.get_dataset(
-        service_account_json, api_key, project_id, cloud_region, dataset_id)
+        service_account_json, project_id, cloud_region, dataset_id)
 
     datasets.list_datasets(
-        service_account_json, api_key, project_id, cloud_region)
+        service_account_json, project_id, cloud_region)
 
     # Test and also clean up
     datasets.delete_dataset(
-        service_account_json, api_key, project_id, cloud_region, dataset_id)
+        service_account_json, project_id, cloud_region, dataset_id)
 
     out, _ = capsys.readouterr()
 
@@ -57,18 +53,15 @@ def test_CRUD_dataset(capsys):
     assert 'Deleted dataset' in out
 
 
-@pytest.mark.skip(reason='disable until API whitelisted / enabled')
 def test_patch_dataset(capsys):
     datasets.create_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
 
     datasets.patch_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -76,7 +69,7 @@ def test_patch_dataset(capsys):
 
     # Clean up
     datasets.delete_dataset(
-        service_account_json, api_key, project_id, cloud_region, dataset_id)
+        service_account_json, project_id, cloud_region, dataset_id)
 
     out, _ = capsys.readouterr()
 
@@ -84,30 +77,26 @@ def test_patch_dataset(capsys):
     assert 'UTC' in out
 
 
-@pytest.mark.skip(reason='disable until API whitelisted / enabled')
 def test_deidentify_dataset(capsys):
     datasets.create_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
 
     datasets.deidentify_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
         destination_dataset_id,
-        whitelist_tags)
+        keeplist_tags)
 
     # Clean up
     datasets.delete_dataset(
-        service_account_json, api_key, project_id, cloud_region, dataset_id)
+        service_account_json, project_id, cloud_region, dataset_id)
     datasets.delete_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         destination_dataset_id)
@@ -116,3 +105,40 @@ def test_deidentify_dataset(capsys):
 
     # Check that de-identify worked
     assert 'De-identified data written to' in out
+
+
+def test_get_set_dataset_iam_policy(capsys):
+    datasets.create_dataset(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id)
+
+    get_response = datasets.get_dataset_iam_policy(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id)
+
+    set_response = datasets.set_dataset_iam_policy(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id,
+        'serviceAccount:python-docs-samples-tests@appspot.gserviceaccount.com',
+        'roles/viewer')
+
+    # Clean up
+    datasets.delete_dataset(
+        service_account_json,
+        project_id,
+        cloud_region,
+        dataset_id)
+
+    out, _ = capsys.readouterr()
+
+    assert 'etag' in get_response
+    assert 'bindings' in set_response
+    assert len(set_response['bindings']) == 1
+    assert 'python-docs-samples-tests' in str(set_response['bindings'])
+    assert 'roles/viewer' in str(set_response['bindings'])

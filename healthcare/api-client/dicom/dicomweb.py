@@ -16,16 +16,11 @@ import argparse
 import json
 import os
 
-import email
-from email import encoders
-from email.mime import application
-from email.mime import multipart
-
 from google.auth.transport import requests
 from googleapiclient.errors import HttpError
 from google.oauth2 import service_account
 
-_BASE_URL = 'https://healthcare.googleapis.com/v1alpha'
+_BASE_URL = 'https://healthcare.googleapis.com/v1beta1'
 
 
 def get_session(service_account_json):
@@ -65,30 +60,16 @@ def dicomweb_store_instance(
     # Make an authenticated API request
     session = get_session(service_account_json)
 
-    with open(dcm_file) as dcm:
+    with open(dcm_file, 'rb') as dcm:
         dcm_content = dcm.read()
 
-    # All requests to store an instance are multipart messages, as designated
-    # by the multipart/related portion of the Content-Type. This means that
-    # the request is made up of multiple sets of data that are combined after
-    # the request completes. Each of these sets of data must be separated using
-    # a boundary, as designated by the boundary portion of the Content-Type.
-    multipart_body = multipart.MIMEMultipart(
-        subtype='related', boundary=email.generator._make_boundary())
-    part = application.MIMEApplication(
-        dcm_content, 'dicom', _encoder=encoders.encode_noop)
-    multipart_body.attach(part)
-    boundary = multipart_body.get_boundary()
-
-    content_type = (
-        'multipart/related; type="application/dicom"; ' +
-        'boundary="%s"') % boundary
+    content_type = 'application/dicom'
     headers = {'Content-Type': content_type}
 
     try:
         response = session.post(
             dicomweb_path,
-            data=multipart_body.as_string(),
+            data=dcm_content,
             headers=headers)
         response.raise_for_status()
         print('Stored DICOM instance:')
@@ -100,7 +81,7 @@ def dicomweb_store_instance(
 # [END healthcare_dicomweb_store_instance]
 
 
-# [START healthcare_dicomweb_search_instance]
+# [START healthcare_dicomweb_search_instances]
 def dicomweb_search_instance(
         service_account_json,
         base_url,
@@ -131,7 +112,7 @@ def dicomweb_search_instance(
     print(json.dumps(instances, indent=2))
 
     return instances
-# [END healthcare_dicomweb_search_instance]
+# [END healthcare_dicomweb_search_instances]
 
 
 # [START healthcare_dicomweb_retrieve_study]
@@ -150,20 +131,113 @@ def dicomweb_retrieve_study(
     dicomweb_path = '{}/datasets/{}/dicomStores/{}/dicomWeb/studies/{}'.format(
         url, dataset_id, dicom_store_id, study_uid)
 
+    # When specifying the output file, use an extension like ".multipart."
+    # Then, parse the downloaded multipart file to get each individual
+    # DICOM file.
+    file_name = 'study.multipart'
+
+    # Make an authenticated API request
+    session = get_session(service_account_json)
+
+    response = session.get(dicomweb_path)
+
+    response.raise_for_status()
+
+    with open(file_name, 'wb') as f:
+        f.write(response.content)
+        print('Retrieved study and saved to file ' +
+              '{} in current directory'.format(file_name))
+
+    return response
+# [END healthcare_dicomweb_retrieve_study]
+
+
+# [START healthcare_dicomweb_retrieve_instance]
+def dicomweb_retrieve_instance(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        dicom_store_id,
+        study_uid,
+        series_uid,
+        instance_uid):
+    """Handles the GET requests specified in the DICOMweb standard."""
+    url = '{}/projects/{}/locations/{}'.format(base_url,
+                                               project_id, cloud_region)
+
+    dicom_store_path = '{}/datasets/{}/dicomStores/{}'.format(
+        url, dataset_id, dicom_store_id)
+
+    dicomweb_path = '{}/dicomWeb/studies/{}/series/{}/instances/{}'.format(
+        dicom_store_path, study_uid, series_uid, instance_uid)
+
+    file_name = 'instance.dcm'
+
     # Make an authenticated API request
     session = get_session(service_account_json)
 
     headers = {
-        'Content-Type': 'application/dicom+json; charset=utf-8'
+        'Accept': 'application/dicom; transfer-syntax=*'
     }
 
     response = session.get(dicomweb_path, headers=headers)
+
     response.raise_for_status()
 
-    print('Retrieved study with UID: {}'.format(study_uid))
+    with open(file_name, 'wb') as f:
+        f.write(response.content)
+        print('Retrieved DICOM instance and saved to file ' +
+              '{} in current directory'.format(file_name))
 
     return response
-# [END healthcare_dicomweb_retrieve_study]
+# [END healthcare_dicomweb_retrieve_instance]
+
+
+# [START healthcare_dicomweb_retrieve_rendered]
+def dicomweb_retrieve_rendered(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        dicom_store_id,
+        study_uid,
+        series_uid,
+        instance_uid):
+    """Handles the GET requests specified in the DICOMweb standard."""
+    url = '{}/projects/{}/locations/{}'.format(base_url,
+                                               project_id, cloud_region)
+
+    dicom_store_path = '{}/datasets/{}/dicomStores/{}'.format(
+        url, dataset_id, dicom_store_id)
+
+    instance_path = '{}/dicomWeb/studies/{}/series/{}/instances/{}'.format(
+        dicom_store_path, study_uid, series_uid, instance_uid)
+
+    dicomweb_path = '{}/rendered'.format(instance_path)
+
+    file_name = 'rendered_image.png'
+
+    # Make an authenticated API request
+    session = get_session(service_account_json)
+
+    headers = {
+        'Accept': 'image/png'
+    }
+
+    response = session.get(dicomweb_path, headers=headers)
+
+    response.raise_for_status()
+
+    with open(file_name, 'wb') as f:
+        f.write(response.content)
+        print('Retrieved rendered image and saved to file ' +
+              '{} in current directory'.format(file_name))
+
+    return response
+# [END healthcare_dicomweb_retrieve_rendered]
 
 
 # [START healthcare_dicomweb_delete_study]
@@ -247,6 +321,16 @@ def parse_command_line_args():
         default=None,
         help='Unique identifier for a study.')
 
+    parser.add_argument(
+        '--series_uid',
+        default=None,
+        help='Unique identifier for a series.')
+
+    parser.add_argument(
+        '--instance_uid',
+        default=None,
+        help='Unique identifier for an instance.')
+
     command = parser.add_subparsers(dest='command')
 
     command.add_parser(
@@ -258,6 +342,12 @@ def parse_command_line_args():
     command.add_parser(
         'dicomweb-retrieve-study',
         help=dicomweb_retrieve_study.__doc__)
+    command.add_parser(
+        'dicomweb-retrieve-instance',
+        help=dicomweb_retrieve_instance.__doc__)
+    command.add_parser(
+        'dicomweb-retrieve-rendered',
+        help=dicomweb_retrieve_rendered.__doc__)
     command.add_parser(
         'dicomweb-delete-study',
         help=dicomweb_delete_study.__doc__)
@@ -300,6 +390,30 @@ def run_command(args):
             args.dataset_id,
             args.dicom_store_id,
             args.study_uid)
+
+    elif args.command == 'dicomweb-retrieve-instance':
+        dicomweb_retrieve_instance(
+            args.service_account_json,
+            args.base_url,
+            args.project_id,
+            args.cloud_region,
+            args.dataset_id,
+            args.dicom_store_id,
+            args.study_uid,
+            args.series_uid,
+            args.instance_uid)
+
+    elif args.command == 'dicomweb-retrieve-rendered':
+        dicomweb_retrieve_rendered(
+            args.service_account_json,
+            args.base_url,
+            args.project_id,
+            args.cloud_region,
+            args.dataset_id,
+            args.dicom_store_id,
+            args.study_uid,
+            args.series_uid,
+            args.instance_uid)
 
     elif args.command == 'dicomweb-delete-study':
         dicomweb_delete_study(

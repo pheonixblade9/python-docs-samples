@@ -3,6 +3,8 @@
 .coverage
 .tox
 .pytest_cache
+.ipynb_checkpoints
+.executed_notebooks
 coverage.xml
 python-docs-samples.json
 service-account.json
@@ -23,3 +25,4 @@ credentials.dat
 .vscode/
 *sponge_log.xml
 .DS_store
+env/

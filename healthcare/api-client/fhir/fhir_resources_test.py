@@ -24,8 +24,7 @@ import fhir_stores
 import fhir_resources
 
 cloud_region = 'us-central1'
-api_key = os.environ['API_KEY']
-base_url = 'https://healthcare.googleapis.com/v1alpha'
+base_url = 'https://healthcare.googleapis.com/v1beta1'
 project_id = os.environ['GOOGLE_CLOUD_PROJECT']
 service_account_json = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 
@@ -38,7 +37,6 @@ resource_type = 'Patient'
 def test_dataset():
     dataset = datasets.create_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
@@ -48,7 +46,6 @@ def test_dataset():
     # Clean up
     datasets.delete_dataset(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id)
@@ -58,7 +55,6 @@ def test_dataset():
 def test_fhir_store():
     fhir_store = fhir_stores.create_fhir_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
@@ -68,16 +64,14 @@ def test_fhir_store():
 
     fhir_stores.delete_fhir_store(
         service_account_json,
-        api_key,
         project_id,
         cloud_region,
         dataset_id,
         fhir_store_id)
 
 
-@pytest.mark.skip(reason='Disable until API whitelisted.')
 def test_CRUD_search_resource(test_dataset, test_fhir_store, capsys):
-    fhir_resources.create_resource(
+    response = fhir_resources.create_resource(
         service_account_json,
         base_url,
         project_id,
@@ -86,7 +80,10 @@ def test_CRUD_search_resource(test_dataset, test_fhir_store, capsys):
         fhir_store_id,
         resource_type)
 
-    resource = fhir_resources.search_resources_get(
+    # Save the resource_id because you need to pass it into later tests
+    resource_id = response.json()['id']
+
+    fhir_resources.search_resources_get(
         service_account_json,
         base_url,
         project_id,
@@ -94,10 +91,6 @@ def test_CRUD_search_resource(test_dataset, test_fhir_store, capsys):
         dataset_id,
         fhir_store_id,
         resource_type)
-
-    # Save the resource_id from the object returned by search_resources()
-    # because you need to pass it into get_resource() and delete_resource()
-    resource_id = resource["entry"][0]["resource"]["id"]
 
     fhir_resources.get_resource(
         service_account_json,
@@ -119,7 +112,68 @@ def test_CRUD_search_resource(test_dataset, test_fhir_store, capsys):
         resource_type,
         resource_id)
 
+    fhir_resources.conditional_update_resource(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        fhir_store_id,
+        resource_type,
+        resource_id)
+
     fhir_resources.patch_resource(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        fhir_store_id,
+        resource_type,
+        resource_id)
+
+    fhir_resources.conditional_patch_resource(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        fhir_store_id,
+        resource_type,
+        resource_id)
+
+    history = fhir_resources.list_resource_history(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        fhir_store_id,
+        resource_type,
+        resource_id)
+
+    fhir_resources.get_resource_history(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        fhir_store_id,
+        resource_type,
+        resource_id,
+        history['entry'][-1]['resource']['meta']['versionId'])
+
+    fhir_resources.delete_resource_purge(
+        service_account_json,
+        base_url,
+        project_id,
+        cloud_region,
+        dataset_id,
+        fhir_store_id,
+        resource_type,
+        resource_id)
+
+    fhir_resources.conditional_delete_resource(
         service_account_json,
         base_url,
         project_id,
@@ -144,14 +198,16 @@ def test_CRUD_search_resource(test_dataset, test_fhir_store, capsys):
     # Check that create/search worked
     assert 'Created Resource' in out
     assert 'id' in out
+    assert 'Conditionally updated' in out
     assert 'search' in out
+    assert 'link' in out
+    assert ' deleted' in out
     assert resource_id in out
     assert 'Deleted Resource' in out
 
 
-@pytest.mark.skip(reason='Disable until API whitelisted.')
 def test_get_patient_everything(test_dataset, test_fhir_store, capsys):
-    fhir_resources.create_resource(
+    response = fhir_resources.create_resource(
         service_account_json,
         base_url,
         project_id,
@@ -160,7 +216,10 @@ def test_get_patient_everything(test_dataset, test_fhir_store, capsys):
         fhir_store_id,
         resource_type)
 
-    resource = fhir_resources.search_resources_get(
+    # Save the resource_id because you need to pass it into later tests
+    resource_id = response.json()['id']
+
+    fhir_resources.search_resources_get(
         service_account_json,
         base_url,
         project_id,
@@ -168,10 +227,6 @@ def test_get_patient_everything(test_dataset, test_fhir_store, capsys):
         dataset_id,
         fhir_store_id,
         resource_type)
-
-    # Save the resource_id from the object returned by search_resources()
-    # because you need to pass it into get_resource() and delete_resource()
-    resource_id = resource["entry"][0]["resource"]["id"]
 
     fhir_resources.get_patient_everything(
         service_account_json,
@@ -197,7 +252,6 @@ def test_get_patient_everything(test_dataset, test_fhir_store, capsys):
     assert 'id' in out
 
 
-@pytest.mark.skip(reason="no way of currently testing this")
 def test_get_metadata(test_dataset, test_fhir_store, capsys):
     fhir_resources.get_metadata(
         service_account_json,

@@ -24,7 +24,7 @@ from google.cloud import pubsub_v1
 app = Flask(__name__)
 
 # Configure the following environment variables via app.yaml
-# This is used in the push request handler to veirfy that the request came from
+# This is used in the push request handler to verify that the request came from
 # pubsub and originated from a trusted source.
 app.config['PUBSUB_VERIFICATION_TOKEN'] = \
     os.environ['PUBSUB_VERIFICATION_TOKEN']
@@ -44,6 +44,8 @@ def index():
 
     data = request.form.get('payload', 'Example payload').encode('utf-8')
 
+    # Consider initialzing the publisher client outside this function
+    # for low latency publish.
     publisher = pubsub_v1.PublisherClient()
     topic_path = publisher.topic_path(
         current_app.config['PROJECT'],
