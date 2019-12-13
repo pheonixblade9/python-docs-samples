@@ -297,9 +297,9 @@ def test_send_command(test_topic, capsys):
 
     # Pre-process commands
     for i in range(1, 5):
-        client.loop()
         time.sleep(1)
 
+    client.loop_stop()
     manager.send_command(
             service_account_json, project_id, cloud_region, registry_id,
             device_id, 'me want cookies')

@@ -115,7 +115,7 @@ def on_message(unused_client, unused_userdata, message):
     """Callback when the device receives a message on a subscription."""
     payload = str(message.payload)
     print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
-            payload, message.topic, str(message.qos)))
+        payload, message.topic, str(message.qos)))
 
 
 def get_client(
@@ -124,19 +124,18 @@ def get_client(
     """Create our MQTT client. The client_id is a unique string that identifies
     this device. For Google Cloud IoT Core, it must be in the format below."""
     client = mqtt.Client(
-            client_id=('projects/{}/locations/{}/registries/{}/devices/{}'
-                       .format(
-                               project_id,
-                               cloud_region,
-                               registry_id,
-                               device_id)))
+        client_id=('projects/{}/locations/{}/registries/{}/devices/{}'.format(
+            project_id,
+            cloud_region,
+            registry_id,
+            device_id)))
 
     # With Google Cloud IoT Core, the username field is ignored, and the
     # password field is used to transmit a JWT to authorize the device.
     client.username_pw_set(
-            username='unused',
-            password=create_jwt(
-                    project_id, private_key_file, algorithm))
+        username='unused',
+        password=create_jwt(
+            project_id, private_key_file, algorithm))
 
     # Enable SSL/TLS support.
     client.tls_set(ca_certs=ca_certs, tls_version=ssl.PROTOCOL_TLSv1_2)
@@ -165,6 +164,7 @@ def get_client(
     print('Subscribing to {}'.format(mqtt_command_topic))
     client.subscribe(mqtt_command_topic, qos=0)
 
+    client.loop_start()
     return client
 # [END iot_mqtt_config]
 
@@ -221,6 +221,11 @@ def parse_command_line_args():
             default=20,
             type=int,
             help=('Expiration time, in minutes, for JWT tokens.'))
+    parser.add_argument(
+            '--sleep_duration',
+            default=60,
+            type=int,
+            help=('Time to wait between messages.'))
 
     return parser.parse_args()
 
@@ -246,7 +251,6 @@ def main():
     # Publish num_messages mesages to the MQTT bridge once per second.
     for i in range(1, args.num_messages + 1):
         # Process network events.
-        client.loop()
 
         # Wait if backoff is required.
         if should_backoff:
@@ -269,8 +273,10 @@ def main():
         # [START iot_mqtt_jwt_refresh]
         seconds_since_issue = (datetime.datetime.utcnow() - jwt_iat).seconds
         if seconds_since_issue > 60 * jwt_exp_mins:
-            print('Refreshing token after {}s').format(seconds_since_issue)
+            print('Refreshing token after {}s'.format(seconds_since_issue))
             jwt_iat = datetime.datetime.utcnow()
+            client.disconnect()
+            client.loop_stop()
             client = get_client(
                 args.project_id, args.cloud_region,
                 args.registry_id, args.device_id, args.private_key_file,
@@ -282,8 +288,7 @@ def main():
         # delivery.
         client.publish(mqtt_topic, payload, qos=1)
 
-        # Send events every second. State should not be updated as often
-        time.sleep(1 if args.message_type == 'event' else 5)
+        time.sleep(args.sleep_duration)
 
     print('Finished.')
 # [END iot_mqtt_run]
