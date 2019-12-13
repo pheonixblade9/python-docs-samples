@@ -150,7 +150,7 @@ def get_client(
     client.on_message = on_message
 
     # Connect to the Google MQTT bridge.
-    client.connect(mqtt_bridge_hostname, mqtt_bridge_port)
+    client.connect_async(mqtt_bridge_hostname, mqtt_bridge_port)
 
     # This is the topic that the device will receive configuration updates on.
     mqtt_config_topic = '/devices/{}/config'.format(device_id)
@@ -165,7 +165,6 @@ def get_client(
     print('Subscribing to {}'.format(mqtt_command_topic))
     client.subscribe(mqtt_command_topic, qos=0)
 
-    client.loop_start()
     return client
     # [END iot_mqtt_config]
 
@@ -223,7 +222,6 @@ def listen_for_messages(
 
     # Wait for about a minute for config messages.
     for i in range(1, duration):
-        client.loop()
         if cb is not None:
             cb(client)
 
@@ -274,6 +272,7 @@ def send_data_from_bound_device(
         project_id, cloud_region, registry_id, gateway_id,
         private_key_file, algorithm, ca_certs, mqtt_bridge_hostname,
         mqtt_bridge_port)
+    client.loop_start()
 
     attach_device(client, device_id, '')
     print('Waiting for device to attach.')
@@ -286,8 +285,6 @@ def send_data_from_bound_device(
 
     # Publish num_messages messages to the MQTT bridge
     for i in range(1, num_messages + 1):
-        client.loop()
-
         if should_backoff:
             # If backoff time is too large, give up.
             if minimum_backoff_time > MAXIMUM_BACKOFF_TIME:
@@ -311,14 +308,19 @@ def send_data_from_bound_device(
         if seconds_since_issue > 60 * jwt_exp_mins:
             print('Refreshing token after {}s').format(seconds_since_issue)
             jwt_iat = datetime.datetime.utcnow()
+            client.loop_stop()
+            client.disconnect()
             client = get_client(
                 project_id, cloud_region, registry_id, gateway_id,
                 private_key_file, algorithm, ca_certs, mqtt_bridge_hostname,
                 mqtt_bridge_port)
+            client.loop_start()
 
         time.sleep(5)
 
     detach_device(client, device_id)
+    client.loop_stop()
+    client.disconnect()
 
     print('Finished.')
     # [END send_data_from_bound_device]
@@ -461,22 +463,24 @@ def mqtt_device_demo(args):
         if seconds_since_issue > 60 * jwt_exp_mins:
             print('Refreshing token after {}s'.format(seconds_since_issue))
             jwt_iat = datetime.datetime.utcnow()
-            client.disconnect()
             client.loop_stop()
+            client.disconnect()
             client = get_client(
                 args.project_id, args.cloud_region,
                 args.registry_id, args.device_id, args.private_key_file,
                 args.algorithm, args.ca_certs, args.mqtt_bridge_hostname,
                 args.mqtt_bridge_port)
+            client.loop_start()
         # [END iot_mqtt_jwt_refresh]
         # Publish "payload" to the MQTT topic. qos=1 means at least once
         # delivery. Cloud IoT Core also supports qos=0 for at most once
         # delivery.
         client.publish(mqtt_topic, payload, qos=1)
-
         time.sleep(args.sleep_duration)
         # [END iot_mqtt_run]
 
+    client.loop_stop()
+    client.disconnect()
 
 def main():
     args = parse_command_line_args()
